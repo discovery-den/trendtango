@@ -1,7 +1,8 @@
 package org.pandey.dataextraction.controller;
 
+import org.pandey.dataextraction.dao.NewsData;
+import org.pandey.dataextraction.dao.StockWeeklyData;
 import org.pandey.dataextraction.error.RestClientRuntimeException;
-import org.pandey.dataextraction.dao.WeeklyAdjustedStock;
 import org.pandey.dataextraction.service.AppMetadataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -78,12 +79,12 @@ public class DataExtractionController {
 
     /**
      * Pulls stock data from the specified API base URL.
-     *
-     * @param apiBaseUrl The base URL of the API to pull stock data from.
      * @return The Stock entity containing the stock data.
      */
-    public WeeklyAdjustedStock pullStockData(String apiBaseUrl) {
+    private StockWeeklyData pullStockData() {
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .queryParam("function","TIME_SERIES_WEEKLY_ADJUSTED")
+                .queryParam("symbol", "IBM")
                 .queryParam("apikey", apiToken).build()
                 .toUri();
 
@@ -91,7 +92,23 @@ public class DataExtractionController {
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
                     throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
                 }
-                ).body( WeeklyAdjustedStock.class);
+                ).body( StockWeeklyData.class);
+    }
+
+    /**
+     * Pull News data from the specified api base url
+     * @return News data entity containing the News Data
+     */
+    private NewsData pullNewsData(){
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .queryParam("apikey", apiToken).build()
+                .toUri();
+
+        return restClient.get().uri(uri).accept(MediaType.APPLICATION_JSON).retrieve()
+                .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
+                            throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
+                        }
+                ).body( NewsData.class);
     }
 
     /**
