@@ -4,10 +4,13 @@ import org.pandey.dataextraction.error.RestClientRuntimeException;
 import org.pandey.dataextraction.dao.WeeklyAdjustedStock;
 import org.pandey.dataextraction.service.AppMetadataService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.Date;
@@ -62,6 +65,12 @@ public class DataExtractionController {
     @Autowired
     private final RestClient restClient;
 
+    @Value("${api.token}")
+    private String apiToken;
+
+    @Value("${api.baseUrl:'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY_ADJUSTED'}")
+    private String baseUrl;
+
     public DataExtractionController(RestClient restClient, AppMetadataService appMetadataService) {
         this.restClient = restClient;
         this.appMetadataService = appMetadataService;
@@ -74,9 +83,11 @@ public class DataExtractionController {
      * @return The Stock entity containing the stock data.
      */
     public WeeklyAdjustedStock pullStockData(String apiBaseUrl) {
-        String apiUrl = apiBaseUrl + "/stock-data-endpoint";
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .queryParam("apikey", apiToken).build()
+                .toUri();
 
-        return restClient.get().uri(apiUrl).accept(MediaType.APPLICATION_JSON).retrieve()
+        return restClient.get().uri(uri).accept(MediaType.APPLICATION_JSON).retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
                     throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
                 }
