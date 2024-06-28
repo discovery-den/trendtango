@@ -2,7 +2,7 @@ package org.pandey.dataextraction.controller;
 
 import org.pandey.dataextraction.error.RestClientRuntimeException;
 import org.pandey.dataextraction.dao.WeeklyAdjustedStock;
-import org.pandey.dataextraction.service.MetadataService;
+import org.pandey.dataextraction.service.AppMetadataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
@@ -55,16 +55,16 @@ import java.util.Date;
 public class DataExtractionController {
 
     @Autowired
-    private final MetadataService metadataService;
+    private final AppMetadataService appMetadataService;
 
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
 
     @Autowired
     private final RestClient restClient;
 
-    public DataExtractionController(RestClient restClient, MetadataService metadataService) {
+    public DataExtractionController(RestClient restClient, AppMetadataService appMetadataService) {
         this.restClient = restClient;
-        this.metadataService = metadataService;
+        this.appMetadataService = appMetadataService;
     }
 
     /**
@@ -94,7 +94,7 @@ public class DataExtractionController {
      * @param fileLocation the file location associated with the metadata entry
      */
     private void updateMetadata(String status, String fileLocation){
-        metadataService.insertMetadata(LocalDate.parse(dateFormat.format(new Date())), status, fileLocation);
+        appMetadataService.insertMetadata(LocalDate.parse(dateFormat.format(new Date())), status, fileLocation);
     }
 }
 

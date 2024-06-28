@@ -1,6 +1,6 @@
 package org.pandey.dataextraction.service;
 
-import org.pandey.dataextraction.dao.Metadata;
+import org.pandey.dataextraction.dao.JobMetadata;
 import org.pandey.dataextraction.repo.MetadataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -9,7 +9,7 @@ import java.time.LocalDate;
 
 
 /**
- * Service class for managing {@link Metadata} entities.
+ * Service class for managing {@link JobMetadata} entities.
  * <p>
  * This service provides methods for interacting with the {@link MetadataRepository},
  * including methods for inserting metadata entries into the database.
@@ -19,11 +19,11 @@ import java.time.LocalDate;
  * ensuring that all interactions with the repository are handled correctly.
  * </p>
  *
- * @see Metadata
+ * @see JobMetadata
  * @see MetadataRepository
  */
 @Service
-public class MetadataService {
+public class AppMetadataService {
 
     private final MetadataRepository metadataRepository;
 
@@ -33,7 +33,7 @@ public class MetadataService {
      * @param metadataRepository the repository used for managing Metadata entities
      */
     @Autowired
-    public MetadataService(MetadataRepository metadataRepository) {
+    public AppMetadataService(MetadataRepository metadataRepository) {
         this.metadataRepository = metadataRepository;
     }
 
@@ -49,7 +49,7 @@ public class MetadataService {
      * @param fileLocation the file location associated with the metadata entry
      */
     public void insertMetadata(LocalDate date, String status, String fileLocation) {
-        Metadata metadata = new Metadata(date, status, fileLocation);
-        metadataRepository.save(metadata);
+        JobMetadata jobMetadata = new JobMetadata(date, status, fileLocation);
+        metadataRepository.save(jobMetadata);
     }
 }

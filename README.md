@@ -18,7 +18,7 @@ This project demonstrates an event-based microservice architecture designed to m
 - **Kafka Server**: Free tier of Upstream for setting up a free Kafka server.
 - **Finance API**: Free finance API for data retrieval.
 - **Google Cloud Platform (GCP)**: Free GCP project account for storage.
-- **In-memory DB**: Used to store metadata.
+- **In-memory DB**: Used to store jobMetadata.
 
 This project leverages various free-tier services to build a scalable and efficient microservice architecture.
 

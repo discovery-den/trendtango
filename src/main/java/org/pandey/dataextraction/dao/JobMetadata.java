@@ -18,7 +18,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @RequiredArgsConstructor
 @Entity
-public class Metadata {
+public class JobMetadata {
 
     /**
      * The unique identifier for the Metadata entity.
