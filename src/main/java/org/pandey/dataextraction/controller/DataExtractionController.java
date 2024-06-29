@@ -2,11 +2,14 @@ package org.pandey.dataextraction.controller;
 
 import org.pandey.dataextraction.dao.NewsData;
 import org.pandey.dataextraction.dao.StockWeeklyData;
+import org.pandey.dataextraction.error.KafkaProducerException;
 import org.pandey.dataextraction.error.RestClientRuntimeException;
 import org.pandey.dataextraction.service.AppMetadataService;
+import org.pandey.dataextraction.service.KafkaProducerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.kafka.KafkaException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -66,15 +69,19 @@ public class DataExtractionController {
     @Autowired
     private final RestClient restClient;
 
+    @Autowired
+    private final KafkaProducerService kafkaProducerService;
+
     @Value("${api.token}")
     private String apiToken;
 
     @Value("${api.baseUrl:'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY_ADJUSTED'}")
     private String baseUrl;
 
-    public DataExtractionController(RestClient restClient, AppMetadataService appMetadataService) {
+    public DataExtractionController(RestClient restClient, AppMetadataService appMetadataService, KafkaProducerService kafkaProducerService) {
         this.restClient = restClient;
         this.appMetadataService = appMetadataService;
+        this.kafkaProducerService = kafkaProducerService;
     }
 
     /**
@@ -101,12 +108,14 @@ public class DataExtractionController {
      */
     private NewsData pullNewsData(){
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .queryParam("function","NEWS_SENTIMENT")
+                .queryParam("tickers", "IBM")
                 .queryParam("apikey", apiToken).build()
                 .toUri();
 
         return restClient.get().uri(uri).accept(MediaType.APPLICATION_JSON).retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-                            throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
+                            throw new RestClientRuntimeException("Error occurred while fetching news data", response.getStatusCode());
                         }
                 ).body( NewsData.class);
     }
@@ -114,7 +123,7 @@ public class DataExtractionController {
     /**
      * Inserts a new metadata entry into the database.
      * <p>
-     * This method creates a new Metadata entity with the specified date, status, and file location,
+     * This method creates a new App Metadata entity with the specified date, status, and file location,
      * and saves it to the database using the MetadataRepository.
      * </p>
      *
@@ -123,6 +132,28 @@ public class DataExtractionController {
      */
     private void updateMetadata(String status, String fileLocation){
         appMetadataService.insertMetadata(LocalDate.parse(dateFormat.format(new Date())), status, fileLocation);
+    }
+
+    /**
+     * Sends a message to a Kafka topic.
+     * <p>
+     * This method takes a message as a string and sends it to a predefined Kafka topic.
+     * <p>
+     *
+     * @param message The message to be sent to the Kafka topic. Must not be null.
+     * @throws IllegalArgumentException if the message is null or empty.
+     */
+    private void sendMessage(String message){
+        try {
+            if (message == null || message.isEmpty()) {
+                throw new IllegalArgumentException("Message must not be null or empty");
+            }
+            kafkaProducerService.sendMessage(message);
+        } catch (IllegalArgumentException e) {
+            throw new KafkaProducerException("Invalid message: " + e.getMessage(), e);
+        } catch (KafkaException e) {
+            throw new KafkaProducerException("Error while sending message to Kafka: " + e.getMessage(), e);
+        }
     }
 }
 
