@@ -31,17 +31,15 @@ public class GcsStorageService {
      *
      * @param fileName the name of the file to create or overwrite
      * @param content  the content to write to the file
-     * @return the name of the file saved in GCS if successful, or null if an error occurred
      */
-    public String writeDataToGcs(String fileName, byte[] content) {
+    public void writeDataToGcs(String fileName, byte[] content) {
         try (InputStream inputStream = new ByteArrayInputStream(content)) {
             BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, fileName).build();
             Blob blob = storage.create(blobInfo, inputStream);
             logger.info("File {} uploaded to GCS successfully.", fileName);
-            return blob.getName();
+            blob.getName();
         } catch (Exception e) {
             logger.error("Failed to write data to GCS bucket: {}", e.getMessage());
-            return null;
         }
     }
 }

@@ -1,7 +1,9 @@
 package org.pandey.dataextraction.error;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatusCode;
 
+@Getter
 public class RestClientRuntimeException extends RuntimeException {
     private final HttpStatusCode statusCode;
 
@@ -15,9 +17,6 @@ public class RestClientRuntimeException extends RuntimeException {
         this.statusCode = statusCode;
     }
 
-    public HttpStatusCode getStatusCode() {
-        return statusCode;
-    }
 }
 
 

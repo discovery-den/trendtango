@@ -1,14 +1,14 @@
 package org.pandey.dataextraction.service;
-
 import org.pandey.dataextraction.dao.JobMetadata;
 import org.pandey.dataextraction.error.MetadataException;
 import org.pandey.dataextraction.repo.MetadataRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-
 
 /**
  * Service class for managing {@link JobMetadata} entities.
@@ -26,6 +26,8 @@ import java.time.LocalDate;
  */
 @Service
 public class AppMetadataService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AppMetadataService.class);
 
     private final MetadataRepository metadataRepository;
 
@@ -53,10 +55,13 @@ public class AppMetadataService {
      */
     @Transactional
     public void insertMetadata(LocalDate date, String status, String fileLocation) throws MetadataException {
+        logger.debug("Inserting metadata with date: {}, status: {}, fileLocation: {}", date, status, fileLocation);
         try {
             JobMetadata jobMetadata = new JobMetadata(date, status, fileLocation);
             metadataRepository.save(jobMetadata);
+            logger.info("Successfully inserted metadata for date: {}", date);
         } catch (Exception e) {
+            logger.error("Error while inserting metadata for date: {}", date, e);
             throw new MetadataException("Error while inserting metadata: " + e.getMessage(), e);
         }
     }

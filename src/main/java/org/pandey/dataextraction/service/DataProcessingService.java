@@ -97,11 +97,13 @@ public class DataProcessingService {
 
     @Async
     public CompletableFuture<StockWeeklyData> pullStockDataAsync() {
+        logger.info("Starting async pull of stock data");
         return CompletableFuture.supplyAsync(this::pullStockData);
     }
 
     @Async
     public CompletableFuture<NewsData> pullNewsDataAsync() {
+        logger.info("Starting async pull of news data");
         return CompletableFuture.supplyAsync(this::pullNewsData);
     }
 
@@ -112,6 +114,7 @@ public class DataProcessingService {
      * @throws DataProcessingException if an error occurs during data processing
      */
     public void executeAndSaveData() throws DataProcessingException {
+        logger.info("Executing and saving data process started");
         CompletableFuture<StockWeeklyData> stockDataFuture = CompletableFuture.supplyAsync(this::pullStockData);
         CompletableFuture<NewsData> newsDataFuture = CompletableFuture.supplyAsync(this::pullNewsData);
 
@@ -147,6 +150,7 @@ public class DataProcessingService {
      * @param e the exception that occurred
      */
     private void handleProcessingError(Exception e) {
+        logger.error("Handling processing error: ", e);
         try {
             appMetadataService.insertMetadata(LocalDate.now(), "FAILURE", e.getMessage());
             sendMessage("Data saving failed for " + LocalDate.now() + ": " + e.getMessage());
@@ -162,6 +166,7 @@ public class DataProcessingService {
      * @return The Stock entity containing the stock data.
      */
     private StockWeeklyData pullStockData() {
+        logger.info("Pulling stock data from API");
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("function", "TIME_SERIES_WEEKLY_ADJUSTED")
                 .queryParam("symbol", "IBM")
@@ -181,6 +186,7 @@ public class DataProcessingService {
      * @return News data entity containing the News Data
      */
     private NewsData pullNewsData() {
+        logger.info("Pulling news data from API");
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
                 .queryParam("function", "NEWS_SENTIMENT")
                 .queryParam("tickers", "IBM")
@@ -205,6 +211,7 @@ public class DataProcessingService {
      * @param fileLocation the file location associated with the metadata entry
      */
     private void updateMetadata(String status, String fileLocation) {
+        logger.info("Updating metadata with status: {} and file location: {}", status, fileLocation);
         appMetadataService.insertMetadata(LocalDate.parse(dateFormat.format(new Date())), status, fileLocation);
     }
 
@@ -218,6 +225,7 @@ public class DataProcessingService {
      * @throws IllegalArgumentException if the message is null or empty.
      */
     private void sendMessage(String message) {
+        logger.info("Sending message to Kafka: {}", message);
         try {
             if (message == null || message.isEmpty()) {
                 throw new IllegalArgumentException("Message must not be null or empty");
