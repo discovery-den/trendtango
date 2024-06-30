@@ -1,16 +1,20 @@
-package org.pandey.dataextraction.controller;
+package org.pandey.dataextraction.service;
 
 import org.pandey.dataextraction.dao.NewsData;
 import org.pandey.dataextraction.dao.StockWeeklyData;
+import org.pandey.dataextraction.error.DataProcessingException;
 import org.pandey.dataextraction.error.KafkaProducerException;
 import org.pandey.dataextraction.error.RestClientRuntimeException;
-import org.pandey.dataextraction.service.AppMetadataService;
-import org.pandey.dataextraction.service.KafkaProducerService;
+import org.pandey.dataextraction.utils.SerializeUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.KafkaException;
-import org.springframework.stereotype.Controller;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -18,11 +22,12 @@ import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.Date;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * DataExtractionController.java
+ * DataProcessingService.java
  * <p>
- * This is the main controller class responsible for the following operations:
+ * This is the main service class responsible for the following operations:
  * - Pulling stock and news data from various sources
  * - Updating metadata related to the pulled data
  * - Sending notification messages on a Kafka topic
@@ -35,7 +40,7 @@ import java.util.Date;
  * - Fetch news data relevant to stocks or financial markets
  * - Update metadata in the system to keep track of the data extraction status
  * - Send notification messages to a specified Kafka topic to notify other systems about
- *   the availability of new data
+ * the availability of new data
  * <p>
  * Dependencies:
  * - Kafka producer for sending messages
@@ -44,13 +49,13 @@ import java.util.Date;
  * <p>
  * Usage example:
  * {@code
- * DataExtractionController controller = new DataExtractionController();
+ * DataProcessingService controller = new DataProcessingService();
  * controller.pullStockData();
  * controller.pullNewsData();
  * controller.updateMetadata();
  * controller.sendNotification();
  * }
- *
+ * <p>
  * Note: Ensure that all the necessary configurations for data sources and Kafka are set
  * up correctly before using this controller.
  * <p>
@@ -58,8 +63,10 @@ import java.util.Date;
  * Date: 25.07.2024
  */
 
-@Controller
-public class DataExtractionController {
+@Service
+public class DataProcessingService {
+
+    private static final Logger logger = LoggerFactory.getLogger(DataProcessingService.class);
 
     @Autowired
     private final AppMetadataService appMetadataService;
@@ -72,43 +79,110 @@ public class DataExtractionController {
     @Autowired
     private final KafkaProducerService kafkaProducerService;
 
+    @Autowired
+    private final GcsStorageService gcsStorageService;
+
     @Value("${api.token}")
     private String apiToken;
 
-    @Value("${api.baseUrl:'https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY_ADJUSTED'}")
+    @Value("${api.baseUrl:'https://www.alphavantage.co/query'}")
     private String baseUrl;
 
-    public DataExtractionController(RestClient restClient, AppMetadataService appMetadataService, KafkaProducerService kafkaProducerService) {
+    public DataProcessingService(RestClient restClient, AppMetadataService appMetadataService, KafkaProducerService kafkaProducerService, GcsStorageService gcsStorageService) {
         this.restClient = restClient;
         this.appMetadataService = appMetadataService;
         this.kafkaProducerService = kafkaProducerService;
+        this.gcsStorageService = gcsStorageService;
+    }
+
+    @Async
+    public CompletableFuture<StockWeeklyData> pullStockDataAsync() {
+        return CompletableFuture.supplyAsync(this::pullStockData);
+    }
+
+    @Async
+    public CompletableFuture<NewsData> pullNewsDataAsync() {
+        return CompletableFuture.supplyAsync(this::pullNewsData);
+    }
+
+    /**
+     * Executes the process of pulling stock and news data, saving the data to GCS, updating metadata, and sending a notification message.
+     * The data is pulled in parallel using asynchronous tasks.
+     *
+     * @throws DataProcessingException if an error occurs during data processing
+     */
+    public void executeAndSaveData() throws DataProcessingException {
+        CompletableFuture<StockWeeklyData> stockDataFuture = CompletableFuture.supplyAsync(this::pullStockData);
+        CompletableFuture<NewsData> newsDataFuture = CompletableFuture.supplyAsync(this::pullNewsData);
+
+        CompletableFuture.allOf(stockDataFuture, newsDataFuture).thenAcceptAsync(ignored -> {
+            try {
+                StockWeeklyData stockData = stockDataFuture.get();
+                NewsData newsData = newsDataFuture.get();
+
+                String stockFileName = "stock_weekly_data_" + LocalDate.now();
+                String newsFileName = "news_data_" + LocalDate.now();
+
+                byte[] stockDataBytes = SerializeUtil.serializeToJsonBytes(stockData);
+                byte[] newsDataBytes = SerializeUtil.serializeToJsonBytes(newsData);
+
+                gcsStorageService.writeDataToGcs(stockFileName, stockDataBytes);
+                gcsStorageService.writeDataToGcs(newsFileName, newsDataBytes);
+
+                appMetadataService.insertMetadata(LocalDate.now(), "SUCCESS", "gs://bucket/" + stockFileName);
+                appMetadataService.insertMetadata(LocalDate.now(), "SUCCESS", "gs://bucket/" + newsFileName);
+
+                sendMessage("Data saved successfully for " + LocalDate.now());
+                logger.info("Data saved successfully for {}", LocalDate.now());
+            } catch (Exception e) {
+                logger.error("Error occurred during data processing and saving: ", e);
+                handleProcessingError(new DataProcessingException(e.getMessage(), e));
+            }
+        });
+    }
+
+    /**
+     * Handles errors during the data processing and saving operations.
+     *
+     * @param e the exception that occurred
+     */
+    private void handleProcessingError(Exception e) {
+        try {
+            appMetadataService.insertMetadata(LocalDate.now(), "FAILURE", e.getMessage());
+            sendMessage("Data saving failed for " + LocalDate.now() + ": " + e.getMessage());
+            logger.error("Data saving failed for {}: {}", LocalDate.now(), e.getMessage());
+        } catch (Exception ex) {
+            logger.error("Error handling processing error: ", ex);
+        }
     }
 
     /**
      * Pulls stock data from the specified API base URL.
+     *
      * @return The Stock entity containing the stock data.
      */
     private StockWeeklyData pullStockData() {
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .queryParam("function","TIME_SERIES_WEEKLY_ADJUSTED")
+                .queryParam("function", "TIME_SERIES_WEEKLY_ADJUSTED")
                 .queryParam("symbol", "IBM")
                 .queryParam("apikey", apiToken).build()
                 .toUri();
 
         return restClient.get().uri(uri).accept(MediaType.APPLICATION_JSON).retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-                    throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
-                }
-                ).body( StockWeeklyData.class);
+                            throw new RestClientRuntimeException("Error occurred while fetching stock data", response.getStatusCode());
+                        }
+                ).body(StockWeeklyData.class);
     }
 
     /**
      * Pull News data from the specified api base url
+     *
      * @return News data entity containing the News Data
      */
-    private NewsData pullNewsData(){
+    private NewsData pullNewsData() {
         URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl)
-                .queryParam("function","NEWS_SENTIMENT")
+                .queryParam("function", "NEWS_SENTIMENT")
                 .queryParam("tickers", "IBM")
                 .queryParam("apikey", apiToken).build()
                 .toUri();
@@ -117,7 +191,7 @@ public class DataExtractionController {
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
                             throw new RestClientRuntimeException("Error occurred while fetching news data", response.getStatusCode());
                         }
-                ).body( NewsData.class);
+                ).body(NewsData.class);
     }
 
     /**
@@ -127,10 +201,10 @@ public class DataExtractionController {
      * and saves it to the database using the MetadataRepository.
      * </p>
      *
-     * @param status the status of the metadata entry
+     * @param status       the status of the metadata entry
      * @param fileLocation the file location associated with the metadata entry
      */
-    private void updateMetadata(String status, String fileLocation){
+    private void updateMetadata(String status, String fileLocation) {
         appMetadataService.insertMetadata(LocalDate.parse(dateFormat.format(new Date())), status, fileLocation);
     }
 
@@ -143,7 +217,7 @@ public class DataExtractionController {
      * @param message The message to be sent to the Kafka topic. Must not be null.
      * @throws IllegalArgumentException if the message is null or empty.
      */
-    private void sendMessage(String message){
+    private void sendMessage(String message) {
         try {
             if (message == null || message.isEmpty()) {
                 throw new IllegalArgumentException("Message must not be null or empty");
