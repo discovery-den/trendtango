@@ -1,68 +1,119 @@
 package org.pandey.dataextraction.service;
+
 import org.pandey.dataextraction.dao.JobMetadata;
 import org.pandey.dataextraction.error.MetadataException;
 import org.pandey.dataextraction.repo.MetadataRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 
-/**
- * Service class for managing {@link JobMetadata} entities.
- * <p>
- * This service provides methods for interacting with the {@link MetadataRepository},
- * including methods for inserting metadata entries into the database.
- * </p>
- * <p>
- * The MetadataService encapsulates the business logic for managing metadata,
- * ensuring that all interactions with the repository are handled correctly.
- * </p>
- *
- * @see JobMetadata
- * @see MetadataRepository
- */
 @Service
 public class AppMetadataService {
-
     private static final Logger logger = LoggerFactory.getLogger(AppMetadataService.class);
+    private static final String METADATA_INSERT_OPERATION = "metadata_insert";
 
     private final MetadataRepository metadataRepository;
 
-    /**
-     * Constructs a new MetadataService with the specified MetadataRepository.
-     *
-     * @param metadataRepository the repository used for managing Metadata entities
-     */
     @Autowired
     public AppMetadataService(MetadataRepository metadataRepository) {
         this.metadataRepository = metadataRepository;
     }
 
-    /**
-     * Inserts a new metadata entry into the database.
-     * <p>
-     * This method creates a new JobMetadata entity with the specified date, status, and file location,
-     * and saves it to the database using the MetadataRepository.
-     * </p>
-     *
-     * @param date the date associated with the metadata entry, in LocalDate format
-     * @param status the status of the metadata entry
-     * @param fileLocation the file location associated with the metadata entry
-     * @throws MetadataException if there is an issue with inserting the metadata
-     */
     @Transactional
     public void insertMetadata(LocalDate date, String status, String fileLocation) throws MetadataException {
-        logger.debug("Inserting metadata with date: {}, status: {}, fileLocation: {}", date, status, fileLocation);
+        validateInputParameters(date, status, fileLocation);
+
+        logger.atDebug()
+                .setMessage("Attempting to insert metadata")
+                .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                .addKeyValue("date", date)
+                .addKeyValue("status", status)
+                .addKeyValue("fileLocation", fileLocation)
+                .log();
+
         try {
             JobMetadata jobMetadata = new JobMetadata(date, status, fileLocation);
             metadataRepository.save(jobMetadata);
-            logger.info("Successfully inserted metadata for date: {}", date);
+
+            logger.atInfo()
+                    .setMessage("Successfully inserted metadata")
+                    .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                    .addKeyValue("date", date)
+                    .addKeyValue("metadataId", jobMetadata.getId())
+                    .log();
+        } catch (DataAccessException dae) {
+            handleDataAccessException(date, dae);
         } catch (Exception e) {
-            logger.error("Error while inserting metadata for date: {}", date, e);
-            throw new MetadataException("Error while inserting metadata: " + e.getMessage(), e);
+            handleUnexpectedException(date, e);
         }
+    }
+
+    private void validateInputParameters(LocalDate date, String status, String fileLocation) {
+        if (date == null) {
+            logger.atError()
+                    .setMessage("Validation failed: date cannot be null")
+                    .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                    .log();
+            throw new IllegalArgumentException("Date cannot be null");
+        }
+
+        if (!StringUtils.hasText(status)) {
+            logger.atError()
+                    .setMessage("Validation failed: status cannot be empty")
+                    .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                    .addKeyValue("date", date)
+                    .log();
+            throw new IllegalArgumentException("Status cannot be null or empty");
+        }
+
+        if (!StringUtils.hasText(fileLocation)) {
+            logger.atError()
+                    .setMessage("Validation failed: file location cannot be empty")
+                    .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                    .addKeyValue("date", date)
+                    .addKeyValue("status", status)
+                    .log();
+            throw new IllegalArgumentException("File location cannot be null or empty");
+        }
+
+        if (date.isAfter(LocalDate.now())) {
+            logger.atWarn()
+                    .setMessage("Future date detected in metadata")
+                    .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                    .addKeyValue("date", date)
+                    .log();
+        }
+    }
+
+    private void handleDataAccessException(LocalDate date, DataAccessException dae) {
+        String errorMessage = "Database operation failed";
+
+        logger.atError()
+                .setMessage(errorMessage)
+                .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                .addKeyValue("date", date)
+                .setCause(dae)
+                .log();
+
+        throw new MetadataException(errorMessage, dae);
+    }
+
+    private void handleUnexpectedException(LocalDate date, Exception e) {
+        String errorMessage = "Unexpected error during metadata operation";
+
+        logger.atError()
+                .setMessage(errorMessage)
+                .addKeyValue("operation", METADATA_INSERT_OPERATION)
+                .addKeyValue("date", date)
+                .setCause(e)
+                .log();
+
+        throw new MetadataException(errorMessage, e);
     }
 }
