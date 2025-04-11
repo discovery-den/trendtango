@@ -4,12 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
 @Async
+@EntityScan("org.pandey.dataextraction.dao")  // Scan your entity package
+@EnableJpaRepositories("org.pandey.dataextraction.repo")  // Scan your repository package
 public class ConsumingRestApplication {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsumingRestApplication.class);

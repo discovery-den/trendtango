@@ -46,11 +46,11 @@ public class DataProcessingService {
     private String baseUrl;
 
     @Autowired
-    public DataProcessingService(WebClient webClient,
+    public DataProcessingService(WebClient.Builder webClientBuilder,
                                  AppMetadataService appMetadataService,
                                  KafkaProducerService kafkaProducerService,
                                  GcsStorageService gcsStorageService) {
-        this.webClient = webClient;
+        this.webClient = webClientBuilder.baseUrl("https://www.alphavantage.co").build();
         this.appMetadataService = appMetadataService;
         this.kafkaProducerService = kafkaProducerService;
         this.gcsStorageService = gcsStorageService;

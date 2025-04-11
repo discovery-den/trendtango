@@ -3,6 +3,7 @@ package org.pandey.dataextraction.repo;
 import org.pandey.dataextraction.dao.JobMetadata;
 import org.pandey.dataextraction.service.AppMetadataService;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 /**
  * Repository interface for {@link JobMetadata} entities.
@@ -20,6 +21,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @see JobMetadata
  * @see JpaRepository
  */
+@Repository
 public interface MetadataRepository extends JpaRepository<JobMetadata, Long> {
 }
 

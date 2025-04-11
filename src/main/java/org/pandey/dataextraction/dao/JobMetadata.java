@@ -1,23 +1,20 @@
 package org.pandey.dataextraction.dao;
 
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
 import java.time.LocalDate;
 
 /**
- * Entity class representing Metadata.
+ * Entity class representing job metadata.
  */
 @Data
 @NoArgsConstructor
 @RequiredArgsConstructor
 @Entity
+@Table(name = "job_metadata")
 public class JobMetadata {
 
     /**
@@ -32,18 +29,20 @@ public class JobMetadata {
      * The run date of scheduler.
      */
     @NonNull
+    @Column(nullable = false)
     private LocalDate date;
 
     /**
      * The status of the pulling data from api.
      */
     @NonNull
+    @Column(nullable = false, length = 50)
     private String status;
 
     /**
      * The file location path in the object storage.
      */
     @NonNull
+    @Column(name = "file_location", nullable = false, length = 500)
     private String fileLocation;
 }
-
